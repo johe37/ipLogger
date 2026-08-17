@@ -8,7 +8,6 @@ services:
     ports:
       - "3000:3000"
     environment:
-      LOG_SECRET: ${LOG_SECRET}
       DASHBOARD_USER: ${DASHBOARD_USER:-admin}
       DASHBOARD_PASSWORD: ${DASHBOARD_PASSWORD}
       DATABASE_PATH: /data/visits.db

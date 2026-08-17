@@ -4,7 +4,7 @@ const config = require("../config");
 
 const router = express.Router();
 
-router.get("/", (req, res) => {
+router.get("/health", (req, res) => {
   const accept = req.headers.accept || "";
   if (accept.includes("text/html")) {
     return res.sendFile(path.join(config.publicDir, "health.html"));

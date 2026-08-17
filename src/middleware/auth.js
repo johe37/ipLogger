@@ -1,14 +1,6 @@
 const config = require("../config");
 const { safeEqual } = require("../lib/util");
 
-function requireIngestAuth(req, res, next) {
-  const authHeader = req.headers.authorization || "";
-  if (authHeader !== `Bearer ${config.logSecret}`) {
-    return res.status(401).json({ error: "Unauthorized" });
-  }
-  next();
-}
-
 function requireDashboardAuth(req, res, next) {
   if (!config.dashboardPassword) {
     return res.status(503).json({
@@ -49,6 +41,5 @@ function challenge(res) {
 }
 
 module.exports = {
-  requireIngestAuth,
   requireDashboardAuth
 };

@@ -1,7 +1,7 @@
 {
   "name": "iplogger",
   "version": "1.0.0",
-  "description": "Home-hosted IP visit logger with a local dashboard",
+  "description": "Home-hosted IP visit logger with a password-protected dashboard",
   "main": "src/index.js",
   "engines": {
     "node": ">=22.13.0"

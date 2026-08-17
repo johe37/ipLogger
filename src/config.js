@@ -2,7 +2,6 @@ const path = require("node:path");
 
 module.exports = {
   port: Number(process.env.PORT) || 3000,
-  logSecret: process.env.LOG_SECRET || "change-me-to-a-strong-secret",
   dashboardUser: process.env.DASHBOARD_USER || "admin",
   dashboardPassword: process.env.DASHBOARD_PASSWORD || "",
   databasePath:
