@@ -1,11 +1,7 @@
 const express = require("express");
-const db = require("../db");
-const { enrich } = require("../lib/geo");
 const { fromRequest } = require("../lib/visit");
 
 const router = express.Router();
-
-const skipLog = new Set(["/favicon.ico", "/robots.txt"]);
 
 router.post("/api/log", (_req, res) => {
   res.status(410).json({
@@ -14,29 +10,14 @@ router.post("/api/log", (_req, res) => {
   });
 });
 
-router.use(async (req, res) => {
+router.use((req, res) => {
   const debug = Object.prototype.hasOwnProperty.call(req.query, "debug");
-  const skip = skipLog.has(req.path);
-  let log = { ok: true, status: skip ? 204 : 200, error: skip ? "skipped" : "" };
-  let data = fromRequest(req);
-  let geo = { source: "headers", error: "" };
-
-  if (!skip) {
-    ({ data, geo } = await enrich(data));
-    try {
-      db.insertVisit(data);
-      console.log(
-        "Logged visit:",
-        data.ip,
-        data.city || "-",
-        data.country || "-",
-        data.asOrganization || "-"
-      );
-    } catch (err) {
-      console.error("Failed to persist visit:", err);
-      log = { ok: false, status: 500, error: String(err) };
-    }
-  }
+  const recorded = req.visit;
+  const data = recorded ? recorded.data : fromRequest(req);
+  const log = recorded
+    ? recorded.log
+    : { ok: true, status: 204, error: "skipped" };
+  const geo = recorded ? recorded.geo : { source: "headers", error: "" };
 
   if (req.path === "/favicon.ico") {
     return res.status(204).end();

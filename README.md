@@ -7,8 +7,8 @@ Traffic comes in through a Cloudflare Tunnel. There is no Worker. The Express ap
 ```
 Visitor ──▶ Cloudflare (proxy + location headers) ──▶ Tunnel ──▶ Express
                                                               ├── GET /            IP JSON + insert
-                                                              ├── GET /health      liveness
-                                                              └── GET /dashboard   basic auth UI
+                                                              ├── GET /dashboard   basic auth UI + insert
+                                                              └── GET /health      liveness (not stored)
 ```
 
 If the home box or tunnel is down, `ip.example.com` is down.
@@ -27,7 +27,7 @@ If the home box or tunnel is down, `ip.example.com` is down.
 
 ## What gets logged
 
-Each request that is not `/health`, `/dashboard`, or `/api/*` is stored as:
+Each request is stored, including `/` and `/dashboard`. Not stored: `/health` (Docker probes), `/api/stats` and `/api/visits` (the dashboard polls these every 10s), plus favicon/robots.
 
 ```json
 {
@@ -189,7 +189,7 @@ X-Log-Error:
 
 `X-Log-Status` is `200` on a successful insert, `500` if SQLite failed, or `204` if the path is skipped (`/favicon.ico`, `/robots.txt`). Add `?debug` to include a `_log` object in the JSON body.
 
-Tracker-style paths such as `/whatever` are logged the same way. `/health`, `/dashboard`, and `/api/*` are not.
+Tracker-style paths such as `/whatever` and `/dashboard` are logged the same way. `/health` and the dashboard JSON APIs are not.
 
 ### `GET /health`
 
@@ -201,7 +201,7 @@ Removed. Returns `410 Gone`. Hits on `/` are logged directly.
 
 ### `GET /dashboard`
 
-Browser UI. HTTP basic auth (`DASHBOARD_USER` / `DASHBOARD_PASSWORD`).
+Browser UI. HTTP basic auth (`DASHBOARD_USER` / `DASHBOARD_PASSWORD`). The page view is stored as a visit. The JSON calls the page makes are not.
 
 ### `GET /api/stats` and `GET /api/visits`
 
