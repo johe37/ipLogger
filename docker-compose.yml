@@ -10,6 +10,7 @@ services:
     environment:
       DASHBOARD_USER: ${DASHBOARD_USER:-admin}
       DASHBOARD_PASSWORD: ${DASHBOARD_PASSWORD}
+      GEO_LOOKUP: ${GEO_LOOKUP:-1}
       DATABASE_PATH: /data/visits.db
     volumes:
       - data:/data

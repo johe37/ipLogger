@@ -58,14 +58,15 @@ IP resolution order:
 2. First address in `X-Forwarded-For`
 3. The connecting socket address
 
-Geo fields come from Cloudflare request headers. They are `null` on a raw LAN hit. Behind the tunnel, turn on **Rules → Transform Rules → Managed Transforms → Add visitor location headers** so city, region, coordinates, and timezone arrive as `cf-ip*` headers.
+Geo fields prefer Cloudflare request headers when they are present. A proxied hostname always sends `CF-IPCountry` (so you at least get `SE`). City, region, coordinates, timezone, ASN, and org are **not** sent unless you turn on **Rules → Transform Rules → Managed Transforms → Add visitor location headers**, and Cloudflare never sends org by default.
 
-Optional extra transform rules if you still want ASN / org (not in the managed transform):
+When those headers are missing, the app fills the gaps with a lookup to [ipwho.is](https://ipwho.is/) (cached per IP for 24h). Set `GEO_LOOKUP=0` to disable that. Private/LAN addresses are not looked up.
+
+Optional extra transform rules if you want ASN from Cloudflare instead of the lookup:
 
 | Header | Value |
 |---|---|
 | `cf-asn` | `ip.src.asnum` |
-| `cf-ipasorg` | `ip.src.as.org` (if available on your plan) |
 
 `colo` is parsed from `CF-Ray` (the `SFO` in `…-SFO`). `httpProtocol` is whatever `cloudflared` speaks to Express, usually `HTTP/1.1`, not the visitor’s HTTP/2 or HTTP/3.
 
@@ -85,6 +86,7 @@ A database error is logged but the visitor still gets `200` and the IP JSON.
 | `DASHBOARD_USER` | no | `admin` | HTTP basic auth user for `/dashboard` |
 | `DASHBOARD_PASSWORD` | **yes to view the dashboard** | empty | HTTP basic auth password. If unset, `/dashboard` returns 503 |
 | `DATABASE_PATH` | no | `./data/visits.db` locally, `/data/visits.db` in Docker | SQLite file |
+| `GEO_LOOKUP` | no | `1` | When `1`, fill missing city/region/org via ipwho.is. Set `0` to use Cloudflare headers only |
 
 Copy `.env.example` to `.env` and set `DASHBOARD_PASSWORD`.
 
