@@ -195,10 +195,6 @@ Tracker-style paths such as `/whatever` and `/dashboard` are logged the same way
 
 Liveness. Browsers get a joke page. `curl` still returns plain text (`Service is running. Nice IP you've got there.`). Docker uses this so health checks are not stored as visits.
 
-### `POST /api/log`
-
-Removed. Returns `410 Gone`. Hits on `/` are logged directly.
-
 ### `GET /dashboard`
 
 Browser UI. HTTP basic auth (`DASHBOARD_USER` / `DASHBOARD_PASSWORD`). The page view is stored as a visit. The JSON calls the page makes are not.
@@ -242,14 +238,6 @@ Dashboard, as `admin` / `dev-pass`:
 
 ```
 http://localhost:3000/dashboard
-```
-
-Old ingest URL (must be 410):
-
-```bash
-curl -i http://localhost:3000/api/log \
-  -H "Content-Type: application/json" \
-  -d '{"ip":"1.2.3.4"}'
 ```
 
 End-to-end after the tunnel is up:
