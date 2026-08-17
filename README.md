@@ -17,8 +17,6 @@ Visitor ──GET──▶ Cloudflare Worker (worker/client.js)
 
 The visitor still gets the IP JSON even if the home box is offline. After a Worker deploy, `curl -i` shows `X-Log-Status` / `X-Log-Error` so you can see whether the POST landed.
 
-Do **not** port-forward this on OPNsense. Reach the ingest URL with a Cloudflare Tunnel. Open `/dashboard` on the LAN or over a VPN.
-
 ## Repo layout
 
 | File | Role |
@@ -101,7 +99,7 @@ Copy `.env.example` to `.env` and fill in secrets.
 
 There is no hardcoded backend URL or secret. If either is missing, the Worker still returns IP JSON, but it will not POST (`X-Log-Error` explains which one).
 
-The live site `https://ip.example.com` only updates after you **redeploy** this Worker. Editing `worker/client.js` in git is not enough.
+The live Worker hostname only updates after you **redeploy**. Editing `worker/client.js` in git is not enough.
 
 ## Run at home
 
@@ -188,7 +186,7 @@ Set the Worker `BACKEND_URL` to `https://ingest.example.com/api/log`. Keep `/das
 
 ## Worker deploy
 
-1. Paste the new `worker/client.js` into the Worker that serves `ip.example.com`.
+1. Paste the new `worker/client.js` into the Worker that serves your public IP endpoint.
 2. Settings → Variables and Secrets → secret `LOG_SECRET` (same value as the home app).
 3. Text var `BACKEND_URL` = `https://ingest.example.com/api/log`.
 4. Save and deploy.
