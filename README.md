@@ -205,7 +205,7 @@ You want `X-Log-Status: 200`. `401` means the Worker secret does not match the h
 
 ### `GET /`
 
-Health check. Returns plain text `IP Logger is running`.
+Health check. Browsers get a joke page. `curl` still returns plain text (`Service is running. Nice IP you've got there.`).
 
 ### `POST /api/log`
 
