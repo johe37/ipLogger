@@ -27,7 +27,7 @@ export default {
       timestamp: new Date().toISOString()
     };
 
-    const backendUrl = env?.BACKEND_URL || "https://iplogger-kx3i.onrender.com/api/log";
+    const backendUrl = env?.BACKEND_URL;
     const secret = env?.LOG_SECRET;
     const debug = new URL(request.url).searchParams.has("debug");
     const log = await sendLog(backendUrl, secret, data, ctx);
@@ -47,6 +47,12 @@ export default {
 };
 
 async function sendLog(backendUrl, secret, data, ctx) {
+  if (!backendUrl) {
+    const error = "BACKEND_URL is not set on the Worker";
+    console.error(error);
+    return { ok: false, status: 0, error };
+  }
+
   if (!secret) {
     const error = "LOG_SECRET is not set on the Worker";
     console.error(error);
@@ -70,14 +76,14 @@ async function sendLog(backendUrl, secret, data, ctx) {
   try {
     const res = await promise;
     if (!res.ok) {
-      const error = `Render returned ${res.status}`;
+      const error = `Backend returned ${res.status}`;
       console.error(error);
       return { ok: false, status: res.status, error };
     }
     return { ok: true, status: res.status, error: "" };
   } catch (err) {
     const error = String(err);
-    console.error("Failed to send log to Render:", error);
+    console.error("Failed to send log to backend:", error);
     return { ok: false, status: 0, error };
   }
 }

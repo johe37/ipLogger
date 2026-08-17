@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>IP Logger</title>
+  <style>
+    :root {
+      --bg: #0f1419;
+      --panel: #1a2129;
+      --line: #2a3440;
+      --text: #e7ecf1;
+      --muted: #8b9aab;
+      --accent: #6cb6ff;
+      --good: #3dd68c;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font: 14px/1.45 ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    header {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+      justify-content: space-between;
+      padding: 20px 24px 8px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 20px;
+      font-weight: 650;
+    }
+
+    .muted { color: var(--muted); }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 10px;
+      padding: 8px 24px 16px;
+    }
+
+    .stat {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 12px 14px;
+    }
+
+    .stat b {
+      display: block;
+      font-size: 22px;
+      margin-top: 4px;
+    }
+
+    .toolbar {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      padding: 0 24px 16px;
+    }
+
+    input, button {
+      font: inherit;
+      color: var(--text);
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 8px 10px;
+    }
+
+    input { min-width: 240px; flex: 1; }
+    button { cursor: pointer; }
+    button:hover { border-color: var(--accent); }
+
+    .wrap { padding: 0 24px 24px; overflow: auto; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    th, td {
+      text-align: left;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--line);
+      vertical-align: top;
+      white-space: nowrap;
+    }
+
+    th { color: var(--muted); font-weight: 600; font-size: 12px; letter-spacing: .03em; }
+    tbody tr { cursor: pointer; }
+    tbody tr:hover { background: #222b35; }
+    td.clip { max-width: 280px; overflow: hidden; text-overflow: ellipsis; }
+
+    .empty { padding: 32px; text-align: center; color: var(--muted); }
+
+    dialog {
+      border: 1px solid var(--line);
+      background: var(--panel);
+      color: var(--text);
+      border-radius: 12px;
+      width: min(720px, 92vw);
+      padding: 0;
+    }
+
+    dialog::backdrop { background: rgba(0, 0, 0, .55); }
+
+    .sheet-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    pre {
+      margin: 0;
+      padding: 16px;
+      overflow: auto;
+      font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+      color: #d5e4f3;
+    }
+
+    .dot {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--good);
+      margin-right: 6px;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>IP Logger</h1>
+      <div class="muted"><span class="dot"></span>visits on this box</div>
+    </div>
+    <div class="muted" id="status">Loading…</div>
+  </header>
+
+  <section class="stats">
+    <div class="stat">Total hits<b id="total">—</b></div>
+    <div class="stat">Unique IPs<b id="unique">—</b></div>
+    <div class="stat">Countries<b id="countries">—</b></div>
+    <div class="stat">Last seen<b id="last">—</b></div>
+  </section>
+
+  <div class="toolbar">
+    <input id="search" type="search" placeholder="Filter IP, city, country, org, user agent">
+    <button id="refresh" type="button">Refresh</button>
+  </div>
+
+  <div class="wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Time</th>
+          <th>IP</th>
+          <th>Location</th>
+          <th>Org</th>
+          <th>User agent</th>
+        </tr>
+      </thead>
+      <tbody id="rows">
+        <tr><td class="empty" colspan="5">No visits yet</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <dialog id="sheet">
+    <div class="sheet-head">
+      <strong>Visit detail</strong>
+      <button id="close" type="button">Close</button>
+    </div>
+    <pre id="payload">{}</pre>
+  </dialog>
+
+  <script>
+    const rowsEl = document.getElementById("rows");
+    const searchEl = document.getElementById("search");
+    const statusEl = document.getElementById("status");
+    const sheet = document.getElementById("sheet");
+    const payloadEl = document.getElementById("payload");
+    let timer = null;
+
+    document.getElementById("refresh").addEventListener("click", load);
+    document.getElementById("close").addEventListener("click", () => sheet.close());
+    searchEl.addEventListener("input", debounce(load, 250));
+    rowsEl.addEventListener("click", async (event) => {
+      const row = event.target.closest("tr[data-id]");
+      if (!row) return;
+      const res = await fetch("/api/visits/" + row.dataset.id);
+      if (!res.ok) return;
+      const data = await res.json();
+      payloadEl.textContent = JSON.stringify(data.payload ?? data, null, 2);
+      sheet.showModal();
+    });
+
+    async function load() {
+      const q = searchEl.value.trim();
+      const query = q ? ("?q=" + encodeURIComponent(q) + "&limit=200") : "?limit=200";
+      try {
+        const [statsRes, visitsRes] = await Promise.all([
+          fetch("/api/stats"),
+          fetch("/api/visits" + query)
+        ]);
+        if (statsRes.status === 401 || visitsRes.status === 401) {
+          statusEl.textContent = "Authentication required";
+          return;
+        }
+        if (!statsRes.ok || !visitsRes.ok) {
+          throw new Error("Request failed");
+        }
+        const stats = await statsRes.json();
+        const body = await visitsRes.json();
+        document.getElementById("total").textContent = stats.total;
+        document.getElementById("unique").textContent = stats.uniqueIps;
+        document.getElementById("countries").textContent = stats.countries;
+        document.getElementById("last").textContent = formatTime(stats.lastSeen);
+        renderRows(body.visits);
+        statusEl.textContent = "Updated " + new Date().toLocaleTimeString();
+      } catch (err) {
+        statusEl.textContent = "Failed to load visits";
+      }
+    }
+
+    function renderRows(visits) {
+      if (!visits.length) {
+        rowsEl.innerHTML = '<tr><td class="empty" colspan="5">No visits yet</td></tr>';
+        return;
+      }
+      rowsEl.innerHTML = visits.map((visit) => {
+        const location = [visit.city, visit.region, visit.country].filter(Boolean).join(", ") || "—";
+        return `
+          <tr data-id="${escapeAttr(visit.id)}">
+            <td>${escapeHtml(formatTime(visit.created_at))}</td>
+            <td>${escapeHtml(visit.ip || "—")}</td>
+            <td>${escapeHtml(location)}</td>
+            <td class="clip">${escapeHtml(visit.as_organization || "—")}</td>
+            <td class="clip">${escapeHtml(visit.user_agent || "—")}</td>
+          </tr>
+        `;
+      }).join("");
+    }
+
+    function formatTime(value) {
+      if (!value) return "—";
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return value;
+      return date.toLocaleString();
+    }
+
+    function escapeHtml(value) {
+      return String(value)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;");
+    }
+
+    function escapeAttr(value) {
+      return String(value).replaceAll('"', "");
+    }
+
+    function debounce(fn, wait) {
+      return (...args) => {
+        clearTimeout(timer);
+        timer = setTimeout(() => fn(...args), wait);
+      };
+    }
+
+    load();
+    setInterval(load, 10000);
+  </script>
+</body>
+</html>
