@@ -5,7 +5,7 @@ const { fromRequest } = require("../lib/visit");
 function shouldSkip(path) {
   if (path === "/health" || path === "/health-raccoon.jpg") return true;
   if (path === "/favicon.ico" || path === "/robots.txt") return true;
-  if (path.startsWith("/api/")) return true;
+  if (path.startsWith("/api/") || path.startsWith("/css/")) return true;
   return false;
 }
 

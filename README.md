@@ -22,13 +22,16 @@ If the home box or tunnel is down, `ip.example.com` is down.
 | `src/db.js` | SQLite schema and queries |
 | `src/routes/` | IP lookup, health, dashboard APIs |
 | `src/public/dashboard.html` | Password-protected visit list |
+| `src/public/css/common.css` | Shared palette and base styles |
+| `src/public/css/dashboard.css` | Dashboard layout |
+| `src/public/css/health.css` | Health page layout |
 | `scripts/seed.js` | Sample visits for local dashboard/map |
 | `Dockerfile` | Image for the home server |
 | `docker-compose.yml` | Build, run, persist `/data` |
 
 ## What gets logged
 
-Each request is stored, including `/` and `/dashboard`. Not stored: `/health` (Docker probes), `/api/*` (the dashboard polls these every 10s), plus favicon/robots.
+Each request is stored, including `/` and `/dashboard`. Not stored: `/health` (Docker probes), `/api/*` (the dashboard polls these every 10s), `/css/*`, plus favicon/robots.
 
 ```json
 {
@@ -284,7 +287,7 @@ curl -u admin:dev-pass "http://localhost:3000/api/locations"
 - Without Cloudflare, IP comes from the socket (often `::1` or `127.0.0.1`).
 - Country/city/ASN only show up if you send the `CF-*` headers, or if geo lookup fills gaps for a public IP.
 - The map needs either `CF-IPlatitude` / `CF-IPlongitude` (or a public-IP lookup) for an exact pin, or at least `CF-IPCountry` to place a country-level pin.
-- `/`, `/dashboard`, and tracker-style paths are stored. `/health` and `/api/*` are not.
+- `/`, `/dashboard`, and tracker-style paths are stored. `/health`, `/api/*`, and `/css/*` are not.
 
 ### Production smoke check
 
