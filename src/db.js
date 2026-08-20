@@ -3,6 +3,7 @@ const path = require("node:path");
 const { DatabaseSync } = require("node:sqlite");
 const config = require("./config");
 const { toVisitRow, parsePayload } = require("./lib/visit");
+const { getCountry, resolveCoords } = require("./lib/countryCentroids");
 const { numberValue } = require("./lib/util");
 
 let db;
@@ -105,8 +106,7 @@ function getStats() {
   };
 }
 
-function listVisits({ q = "", country = "", limit, offset } = {}) {
-  open();
+function visitFilter({ q = "", country = "" } = {}) {
   const where = [];
   const params = {};
 
@@ -127,7 +127,19 @@ function listVisits({ q = "", country = "", limit, offset } = {}) {
     params.country = country.toUpperCase();
   }
 
-  const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
+  return {
+    whereSql: where.length ? `WHERE ${where.join(" AND ")}` : "",
+    params
+  };
+}
+
+function andWhere(whereSql, extra) {
+  return whereSql ? `${whereSql} AND ${extra}` : `WHERE ${extra}`;
+}
+
+function listVisits({ q = "", country = "", limit, offset } = {}) {
+  open();
+  const { whereSql, params } = visitFilter({ q, country });
   const rows = db
     .prepare(
       `
@@ -158,6 +170,92 @@ function listVisits({ q = "", country = "", limit, offset } = {}) {
   };
 }
 
+function listLocations({ q = "", country = "", limit } = {}) {
+  open();
+  const { whereSql, params } = visitFilter({ q, country });
+  const plottable = andWhere(
+    whereSql,
+    `(
+      (latitude IS NOT NULL AND latitude != '' AND longitude IS NOT NULL AND longitude != '')
+      OR (country IS NOT NULL AND country != '' AND country NOT IN ('XX', 'T1', 'A1', 'A2'))
+    )`
+  );
+
+  const rows = db
+    .prepare(
+      `
+      SELECT
+        id, ip, city, region, country, latitude, longitude, created_at
+      FROM visits
+      ${plottable}
+      ORDER BY created_at DESC, id DESC
+      LIMIT @limit
+    `
+    )
+    .all({ ...params, limit });
+
+  const points = [];
+  let precise = 0;
+  let countryLevel = 0;
+  for (const row of rows) {
+    const resolved = resolveCoords(row.latitude, row.longitude, row.country);
+    if (!resolved) continue;
+    if (resolved.precision === "point") precise += 1;
+    else countryLevel += 1;
+    points.push({
+      id: numberValue(row.id),
+      ip: row.ip,
+      city: row.city,
+      region: row.region,
+      country: row.country,
+      created_at: row.created_at,
+      lat: resolved.lat,
+      lng: resolved.lng,
+      precision: resolved.precision
+    });
+  }
+
+  const total = numberValue(
+    db.prepare(`SELECT COUNT(*) AS total FROM visits ${whereSql}`).get(params)
+      .total
+  );
+  const plottableTotal = numberValue(
+    db.prepare(`SELECT COUNT(*) AS total FROM visits ${plottable}`).get(params)
+      .total
+  );
+
+  const countryWhere = andWhere(
+    whereSql,
+    "country IS NOT NULL AND country != ''"
+  );
+  const byCountry = db
+    .prepare(
+      `
+      SELECT country, COUNT(*) AS total
+      FROM visits
+      ${countryWhere}
+      GROUP BY country
+      ORDER BY total DESC
+      LIMIT 12
+    `
+    )
+    .all(params)
+    .map((row) => ({
+      country: row.country,
+      name: getCountry(row.country)?.name || row.country,
+      count: numberValue(row.total)
+    }));
+
+  return {
+    total,
+    plottable: plottableTotal,
+    precise,
+    countryLevel,
+    byCountry,
+    points
+  };
+}
+
 function getVisit(id) {
   open();
   const row = statements.selectById.get(id);
@@ -177,5 +275,6 @@ module.exports = {
   insertVisit,
   getStats,
   listVisits,
+  listLocations,
   getVisit
 };

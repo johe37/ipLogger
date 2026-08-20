@@ -4,6 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>IP Logger</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
   <style>
     :root {
       --bg: #0f1419;
@@ -61,11 +63,165 @@
       margin-top: 4px;
     }
 
+    .viz {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 280px;
+      grid-template-rows: 380px;
+      gap: 10px;
+      padding: 0 24px 16px;
+      align-items: stretch;
+    }
+
+    .map-panel,
+    .countries-panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      overflow: hidden;
+      min-height: 0;
+      height: 100%;
+    }
+
+    .map-panel {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .map-wrap {
+      position: relative;
+      flex: 1;
+      min-height: 0;
+    }
+    #map { height: 100%; background: #12181f; }
+    .leaflet-container { font: inherit; background: #12181f; }
+    .leaflet-control-attribution {
+      background: rgba(15, 20, 25, .72);
+      color: var(--muted);
+    }
+    .leaflet-control-attribution a { color: var(--accent); }
+    .leaflet-tooltip {
+      background: var(--panel);
+      color: var(--text);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: none;
+    }
+    .leaflet-tooltip-top::before { border-top-color: var(--line); }
+
+    .map-caption {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+      padding: 8px 12px;
+      border-top: 1px solid var(--line);
+      font-size: 12px;
+      flex-shrink: 0;
+    }
+
+    .map-legend {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .lg {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      margin-right: 6px;
+      vertical-align: 1px;
+    }
+    .lg-point { background: var(--accent); box-shadow: 0 0 0 3px rgba(108, 182, 255, .25); }
+    .lg-country { background: var(--muted); }
+
+    .hit-cluster {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .hit-cluster div {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+      background: var(--panel);
+      border: 1px solid var(--accent);
+      color: var(--text);
+      font: 12px/1 ui-sans-serif, system-ui, sans-serif;
+      box-shadow: 0 0 0 4px rgba(108, 182, 255, .18);
+    }
+
+    .countries-panel {
+      display: flex;
+      flex-direction: column;
+      padding: 12px 14px 8px;
+    }
+
+    .panel-label {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: .03em;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+      flex-shrink: 0;
+    }
+
+    #country-bars {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      flex: 1;
+      min-height: 0;
+      overflow: auto;
+    }
+
+    .country-row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      grid-template-rows: auto 6px;
+      gap: 2px 8px;
+      width: 100%;
+      text-align: left;
+      cursor: pointer;
+      padding: 6px 8px;
+      border: 1px solid transparent;
+      border-radius: 8px;
+      background: transparent;
+    }
+
+    .country-row:hover,
+    .country-row.active {
+      background: #222b35;
+      border-color: var(--accent);
+    }
+
+    .country-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .country-count { color: var(--muted); font-variant-numeric: tabular-nums; }
+    .country-track {
+      grid-column: 1 / -1;
+      height: 6px;
+      border-radius: 99px;
+      background: #12181f;
+      overflow: hidden;
+    }
+    .country-bar {
+      display: block;
+      height: 100%;
+      border-radius: 99px;
+      background: var(--accent);
+    }
+
     .toolbar {
       display: flex;
       gap: 8px;
       flex-wrap: wrap;
       padding: 0 24px 16px;
+      align-items: center;
     }
 
     input, button {
@@ -80,6 +236,25 @@
     input { min-width: 240px; flex: 1; }
     button { cursor: pointer; }
     button:hover { border-color: var(--accent); }
+
+    .chip {
+      display: none;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 10px;
+      border-radius: 99px;
+      background: var(--panel);
+      border: 1px solid var(--accent);
+      color: var(--accent);
+      font-size: 12px;
+    }
+    .chip.visible { display: inline-flex; }
+    .chip button {
+      padding: 0 4px;
+      border: 0;
+      background: transparent;
+      color: inherit;
+    }
 
     .wrap { padding: 0 24px 24px; overflow: auto; }
 
@@ -142,6 +317,13 @@
       background: var(--good);
       margin-right: 6px;
     }
+
+    @media (max-width: 900px) {
+      .viz {
+        grid-template-columns: 1fr;
+        grid-template-rows: 320px minmax(180px, 240px);
+      }
+    }
   </style>
 </head>
 <body>
@@ -160,8 +342,31 @@
     <div class="stat">Last seen<b id="last">—</b></div>
   </section>
 
+  <section class="viz">
+    <div class="map-panel">
+      <div class="map-wrap">
+        <div id="map"></div>
+      </div>
+      <div class="map-caption">
+        <span id="map-caption">Loading map…</span>
+        <span class="map-legend">
+          <span><i class="lg lg-point"></i>Exact</span>
+          <span><i class="lg lg-country"></i>Country</span>
+        </span>
+      </div>
+    </div>
+    <div class="countries-panel">
+      <div class="panel-label">Top countries</div>
+      <div id="country-bars" class="muted">No country data yet</div>
+    </div>
+  </section>
+
   <div class="toolbar">
     <input id="search" type="search" placeholder="Filter IP, city, country, org, user agent">
+    <span class="chip" id="country-chip">
+      <span id="country-chip-label"></span>
+      <button id="country-chip-clear" type="button" aria-label="Clear country filter">×</button>
+    </span>
     <button id="refresh" type="button">Refresh</button>
   </div>
 
@@ -190,53 +395,201 @@
     <pre id="payload">{}</pre>
   </dialog>
 
+  <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
   <script>
     const rowsEl = document.getElementById("rows");
     const searchEl = document.getElementById("search");
     const statusEl = document.getElementById("status");
     const sheet = document.getElementById("sheet");
     const payloadEl = document.getElementById("payload");
+    const mapCaptionEl = document.getElementById("map-caption");
+    const countryBarsEl = document.getElementById("country-bars");
+    const countryChip = document.getElementById("country-chip");
+    const countryChipLabel = document.getElementById("country-chip-label");
     let timer = null;
+    let countryFilter = "";
+    let countryFilterName = "";
+    let lastFitKey = null;
+    let map = null;
+    let clusters = null;
 
     document.getElementById("refresh").addEventListener("click", load);
     document.getElementById("close").addEventListener("click", () => sheet.close());
+    document.getElementById("country-chip-clear").addEventListener("click", () => {
+      setCountryFilter("", "");
+      load();
+    });
     searchEl.addEventListener("input", debounce(load, 250));
-    rowsEl.addEventListener("click", async (event) => {
+    rowsEl.addEventListener("click", (event) => {
       const row = event.target.closest("tr[data-id]");
-      if (!row) return;
-      const res = await fetch("/api/visits/" + row.dataset.id);
-      if (!res.ok) return;
-      const data = await res.json();
-      payloadEl.textContent = JSON.stringify(data.payload ?? data, null, 2);
-      sheet.showModal();
+      if (row) openVisit(row.dataset.id);
+    });
+    countryBarsEl.addEventListener("click", (event) => {
+      const btn = event.target.closest("button[data-country]");
+      if (!btn) return;
+      const code = btn.dataset.country;
+      if (countryFilter === code) setCountryFilter("", "");
+      else setCountryFilter(code, btn.dataset.name || code);
+      load();
     });
 
-    async function load() {
+    function setCountryFilter(code, name) {
+      countryFilter = code;
+      countryFilterName = name;
+      if (code) {
+        countryChipLabel.textContent = name + " (" + code + ")";
+        countryChip.classList.add("visible");
+      } else {
+        countryChip.classList.remove("visible");
+      }
+    }
+
+    function initMap() {
+      if (typeof L === "undefined") {
+        mapCaptionEl.textContent = "Map library failed to load";
+        return;
+      }
+      map = L.map("map", {
+        scrollWheelZoom: true,
+        worldCopyJump: true,
+        attributionControl: true
+      }).setView([20, 0], 2);
+      L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
+        attribution: "&copy; <a href=\"https://www.openstreetmap.org/copyright\">OSM</a> &copy; <a href=\"https://carto.com/attributions\">CARTO</a>",
+        subdomains: "abcd",
+        maxZoom: 18
+      }).addTo(map);
+      clusters = L.markerClusterGroup({
+        showCoverageOnHover: false,
+        maxClusterRadius: 48,
+        spiderfyOnMaxZoom: true,
+        iconCreateFunction(cluster) {
+          const n = cluster.getChildCount();
+          const size = n < 10 ? 32 : n < 50 ? 40 : 48;
+          return L.divIcon({
+            html: "<div>" + n + "</div>",
+            className: "hit-cluster",
+            iconSize: [size, size]
+          });
+        }
+      });
+      map.addLayer(clusters);
+      requestAnimationFrame(() => map.invalidateSize());
+    }
+
+    function filterQuery(limit) {
+      const params = new URLSearchParams();
+      params.set("limit", String(limit));
       const q = searchEl.value.trim();
-      const query = q ? ("?q=" + encodeURIComponent(q) + "&limit=200") : "?limit=200";
+      if (q) params.set("q", q);
+      if (countryFilter) params.set("country", countryFilter);
+      return "?" + params.toString();
+    }
+
+    async function load() {
       try {
-        const [statsRes, visitsRes] = await Promise.all([
+        const [statsRes, visitsRes, locRes] = await Promise.all([
           fetch("/api/stats"),
-          fetch("/api/visits" + query)
+          fetch("/api/visits" + filterQuery(200)),
+          fetch("/api/locations" + filterQuery(2000))
         ]);
-        if (statsRes.status === 401 || visitsRes.status === 401) {
+        if (statsRes.status === 401 || visitsRes.status === 401 || locRes.status === 401) {
           statusEl.textContent = "Authentication required";
           return;
         }
-        if (!statsRes.ok || !visitsRes.ok) {
+        if (!statsRes.ok || !visitsRes.ok || !locRes.ok) {
           throw new Error("Request failed");
         }
         const stats = await statsRes.json();
         const body = await visitsRes.json();
+        const locations = await locRes.json();
         document.getElementById("total").textContent = stats.total;
         document.getElementById("unique").textContent = stats.uniqueIps;
         document.getElementById("countries").textContent = stats.countries;
         document.getElementById("last").textContent = formatTime(stats.lastSeen);
         renderRows(body.visits);
+        renderCountries(locations.byCountry);
+        renderMap(locations);
         statusEl.textContent = "Updated " + new Date().toLocaleTimeString();
       } catch (err) {
         statusEl.textContent = "Failed to load visits";
       }
+    }
+
+    function renderMap(locations) {
+      const points = locations.points || [];
+      if (!map || !clusters) {
+        mapCaptionEl.textContent = "Map library failed to load";
+        return;
+      }
+      clusters.clearLayers();
+      for (const point of points) {
+        const isPoint = point.precision === "point";
+        const marker = L.circleMarker([point.lat, point.lng], {
+          radius: isPoint ? 7 : 6,
+          color: isPoint ? "#6cb6ff" : "#8b9aab",
+          weight: 1,
+          fillColor: isPoint ? "#6cb6ff" : "#8b9aab",
+          fillOpacity: isPoint ? 0.9 : 0.55
+        });
+        const place = [point.city, point.region, point.country].filter(Boolean).join(", ") || "Unknown";
+        marker.bindTooltip(escapeHtml(place) + "<br>" + escapeHtml(point.ip || "—"), {
+          direction: "top",
+          opacity: 0.95
+        });
+        marker.on("click", () => openVisit(point.id));
+        clusters.addLayer(marker);
+      }
+
+      const shown = points.length;
+      const plottable = locations.plottable || 0;
+      const parts = [];
+      if (!shown) {
+        parts.push("No located visits yet");
+      } else {
+        parts.push(shown + (shown === 1 ? " visit" : " visits") + " on the map");
+        if (locations.precise) parts.push(locations.precise + " exact");
+        if (locations.countryLevel) parts.push(locations.countryLevel + " country-level");
+        if (plottable > shown) parts.push("latest " + shown + " of " + plottable);
+      }
+      mapCaptionEl.textContent = parts.join(" · ");
+
+      const fitKey = [searchEl.value, countryFilter, shown].join("|");
+      if (fitKey === lastFitKey) return;
+      lastFitKey = fitKey;
+      if (!shown) {
+        map.setView([20, 0], 2);
+        return;
+      }
+      if (shown === 1) {
+        const p = points[0];
+        map.setView([p.lat, p.lng], p.precision === "point" ? 8 : 4);
+        return;
+      }
+      const bounds = L.latLngBounds(points.map((p) => [p.lat, p.lng]));
+      map.fitBounds(bounds.pad(0.18), { maxZoom: 6, animate: false });
+    }
+
+    function renderCountries(rows) {
+      if (!rows || !rows.length) {
+        countryBarsEl.className = "muted";
+        countryBarsEl.textContent = "No country data yet";
+        return;
+      }
+      countryBarsEl.className = "";
+      const max = rows[0].count || 1;
+      countryBarsEl.innerHTML = rows.map((row) => {
+        const width = Math.max(6, Math.round((row.count / max) * 100));
+        const active = countryFilter === row.country ? " active" : "";
+        return `
+          <button type="button" class="country-row${active}" data-country="${escapeAttr(row.country)}" data-name="${escapeAttr(row.name)}">
+            <span class="country-name">${escapeHtml(row.name)}</span>
+            <span class="country-count">${escapeHtml(row.count)}</span>
+            <span class="country-track"><span class="country-bar" style="width:${width}%"></span></span>
+          </button>
+        `;
+      }).join("");
     }
 
     function renderRows(visits) {
@@ -256,6 +609,14 @@
           </tr>
         `;
       }).join("");
+    }
+
+    async function openVisit(id) {
+      const res = await fetch("/api/visits/" + id);
+      if (!res.ok) return;
+      const data = await res.json();
+      payloadEl.textContent = JSON.stringify(data.payload ?? data, null, 2);
+      sheet.showModal();
     }
 
     function formatTime(value) {
@@ -284,6 +645,7 @@
       };
     }
 
+    initMap();
     load();
     setInterval(load, 10000);
   </script>

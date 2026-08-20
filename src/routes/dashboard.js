@@ -15,6 +15,15 @@ router.get("/api/stats", requireDashboardAuth, (_req, res) => {
   res.json(db.getStats());
 });
 
+router.get("/api/locations", requireDashboardAuth, (req, res) => {
+  const limit = clampInt(req.query.limit, 2000, 1, 5000);
+  const q = typeof req.query.q === "string" ? req.query.q.trim() : "";
+  const country =
+    typeof req.query.country === "string" ? req.query.country.trim() : "";
+
+  res.json(db.listLocations({ q, country, limit }));
+});
+
 router.get("/api/visits", requireDashboardAuth, (req, res) => {
   const limit = clampInt(req.query.limit, 100, 1, 500);
   const offset = clampInt(req.query.offset, 0, 0, 1_000_000);

@@ -22,12 +22,13 @@ If the home box or tunnel is down, `ip.example.com` is down.
 | `src/db.js` | SQLite schema and queries |
 | `src/routes/` | IP lookup, health, dashboard APIs |
 | `src/public/dashboard.html` | Password-protected visit list |
+| `scripts/seed.js` | Sample visits for local dashboard/map |
 | `Dockerfile` | Image for the home server |
 | `docker-compose.yml` | Build, run, persist `/data` |
 
 ## What gets logged
 
-Each request is stored, including `/` and `/dashboard`. Not stored: `/health` (Docker probes), `/api/stats` and `/api/visits` (the dashboard polls these every 10s), plus favicon/robots.
+Each request is stored, including `/` and `/dashboard`. Not stored: `/health` (Docker probes), `/api/*` (the dashboard polls these every 10s), plus favicon/robots.
 
 ```json
 {
@@ -199,9 +200,15 @@ Liveness. Browsers get a joke page. `curl` still returns plain text (`Service is
 
 Browser UI. HTTP basic auth (`DASHBOARD_USER` / `DASHBOARD_PASSWORD`). The page view is stored as a visit. The JSON calls the page makes are not.
 
-### `GET /api/stats` and `GET /api/visits`
+### `GET /api/stats`, `/api/visits`, and `/api/locations`
 
-JSON used by the dashboard. Same basic auth. `GET /api/visits?q=stockholm&limit=100`. `GET /api/visits/:id` returns the full stored payload.
+JSON used by the dashboard. Same basic auth.
+
+- `GET /api/stats` — totals, unique IPs, countries, last seen
+- `GET /api/visits?q=stockholm&limit=100` — table rows. `GET /api/visits/:id` is the full stored payload
+- `GET /api/locations` — map points and a country breakdown. Same `q` / `country` filters. Visits with coordinates are plotted exactly; visits that only have a country code use that country’s centroid
+
+The dashboard map and country list follow the search (and a country click) so they stay in sync with the table. The four headline stats stay global.
 
 ## Development
 
@@ -215,6 +222,14 @@ DASHBOARD_PASSWORD=dev-pass npm start
 ```
 
 It listens on `http://localhost:3000`. SQLite is `./data/visits.db` unless you set `DATABASE_PATH`. Dashboard user defaults to `admin`.
+
+To fill the dashboard and map with sample visits (writes into the same SQLite file; run again to append):
+
+```bash
+npm run seed
+```
+
+Use the same `DATABASE_PATH` as the running app if you overrode it. The page polls every 10s, so you do not need to restart.
 
 Docker is the same app on port 3000 if you prefer that over `npm start`:
 
@@ -261,13 +276,15 @@ Dashboard JSON (same basic auth):
 ```bash
 curl -u admin:dev-pass "http://localhost:3000/api/stats"
 curl -u admin:dev-pass "http://localhost:3000/api/visits?limit=100"
+curl -u admin:dev-pass "http://localhost:3000/api/locations"
 ```
 
 ### Local vs production
 
 - Without Cloudflare, IP comes from the socket (often `::1` or `127.0.0.1`).
 - Country/city/ASN only show up if you send the `CF-*` headers, or if geo lookup fills gaps for a public IP.
-- `/`, `/dashboard`, and tracker-style paths are stored. `/health`, `/api/stats`, and `/api/visits` are not.
+- The map needs either `CF-IPlatitude` / `CF-IPlongitude` (or a public-IP lookup) for an exact pin, or at least `CF-IPCountry` to place a country-level pin.
+- `/`, `/dashboard`, and tracker-style paths are stored. `/health` and `/api/*` are not.
 
 ### Production smoke check
 
