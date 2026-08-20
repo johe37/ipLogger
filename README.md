@@ -205,7 +205,7 @@ Browser UI. HTTP basic auth (`DASHBOARD_USER` / `DASHBOARD_PASSWORD`). The page 
 JSON used by the dashboard. Same basic auth.
 
 - `GET /api/stats` — totals, unique IPs, countries, last seen
-- `GET /api/visits?q=stockholm&limit=100` — table rows. `GET /api/visits/:id` is the full stored payload
+- `GET /api/visits?q=stockholm&limit=30&offset=0` — table rows (`limit` default 30, max 100). `GET /api/visits/:id` is the full stored payload
 - `GET /api/locations` — map points and a country breakdown. Same `q` / `country` filters. Visits with coordinates are plotted exactly; visits that only have a country code use that country’s centroid
 
 The dashboard map and country list follow the search (and a country click) so they stay in sync with the table. The four headline stats stay global.
@@ -275,7 +275,7 @@ Dashboard JSON (same basic auth):
 
 ```bash
 curl -u admin:dev-pass "http://localhost:3000/api/stats"
-curl -u admin:dev-pass "http://localhost:3000/api/visits?limit=100"
+curl -u admin:dev-pass "http://localhost:3000/api/visits?limit=30"
 curl -u admin:dev-pass "http://localhost:3000/api/locations"
 ```
 

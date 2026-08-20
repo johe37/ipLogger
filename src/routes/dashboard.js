@@ -25,7 +25,7 @@ router.get("/api/locations", requireDashboardAuth, (req, res) => {
 });
 
 router.get("/api/visits", requireDashboardAuth, (req, res) => {
-  const limit = clampInt(req.query.limit, 100, 1, 500);
+  const limit = clampInt(req.query.limit, 30, 1, 100);
   const offset = clampInt(req.query.offset, 0, 0, 1_000_000);
   const q = typeof req.query.q === "string" ? req.query.q.trim() : "";
   const country =

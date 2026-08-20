@@ -224,7 +224,7 @@
       align-items: center;
     }
 
-    input, button {
+    input, button, select {
       font: inherit;
       color: var(--text);
       background: var(--panel);
@@ -233,9 +233,14 @@
       padding: 8px 10px;
     }
 
-    input { min-width: 240px; flex: 1; }
+    .toolbar > input { min-width: 240px; flex: 1; }
     button { cursor: pointer; }
     button:hover { border-color: var(--accent); }
+    button:disabled {
+      opacity: 0.45;
+      cursor: default;
+    }
+    button:disabled:hover { border-color: var(--line); }
 
     .chip {
       display: none;
@@ -257,6 +262,34 @@
     }
 
     .wrap { padding: 0 24px 24px; overflow: auto; }
+
+    .pager {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 0 0;
+    }
+
+    .pager-info { color: var(--muted); }
+
+    .pager-controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .page-size {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--muted);
+      margin-left: 4px;
+    }
+
+    #page-size { padding: 6px 8px; }
 
     table {
       width: 100%;
@@ -385,6 +418,22 @@
         <tr><td class="empty" colspan="5">No visits yet</td></tr>
       </tbody>
     </table>
+    <div class="pager">
+      <div class="pager-info" id="pager-info"></div>
+      <div class="pager-controls">
+        <button id="page-prev" type="button">Previous</button>
+        <span id="page-status" class="muted">Page 1 of 1</span>
+        <button id="page-next" type="button">Next</button>
+        <label class="page-size">Per page
+          <select id="page-size">
+            <option value="10">10</option>
+            <option value="30" selected>30</option>
+            <option value="50">50</option>
+            <option value="100">100</option>
+          </select>
+        </label>
+      </div>
+    </div>
   </div>
 
   <dialog id="sheet">
@@ -407,20 +456,32 @@
     const countryBarsEl = document.getElementById("country-bars");
     const countryChip = document.getElementById("country-chip");
     const countryChipLabel = document.getElementById("country-chip-label");
+    const pagerInfoEl = document.getElementById("pager-info");
+    const pageStatusEl = document.getElementById("page-status");
+    const pagePrevEl = document.getElementById("page-prev");
+    const pageNextEl = document.getElementById("page-next");
+    const pageSizeEl = document.getElementById("page-size");
+    const PAGE_SIZE_MAX = 100;
     let timer = null;
     let countryFilter = "";
     let countryFilterName = "";
     let lastFitKey = null;
     let map = null;
     let clusters = null;
+    let page = 1;
+    let pageSize = 30;
 
     document.getElementById("refresh").addEventListener("click", load);
     document.getElementById("close").addEventListener("click", () => sheet.close());
     document.getElementById("country-chip-clear").addEventListener("click", () => {
       setCountryFilter("", "");
+      page = 1;
       load();
     });
-    searchEl.addEventListener("input", debounce(load, 250));
+    searchEl.addEventListener("input", debounce(() => {
+      page = 1;
+      load();
+    }, 250));
     rowsEl.addEventListener("click", (event) => {
       const row = event.target.closest("tr[data-id]");
       if (row) openVisit(row.dataset.id);
@@ -431,6 +492,22 @@
       const code = btn.dataset.country;
       if (countryFilter === code) setCountryFilter("", "");
       else setCountryFilter(code, btn.dataset.name || code);
+      page = 1;
+      load();
+    });
+    pagePrevEl.addEventListener("click", () => {
+      if (page <= 1) return;
+      page -= 1;
+      load();
+    });
+    pageNextEl.addEventListener("click", () => {
+      page += 1;
+      load();
+    });
+    pageSizeEl.addEventListener("change", () => {
+      pageSize = clampPageSize(pageSizeEl.value);
+      pageSizeEl.value = String(pageSize);
+      page = 1;
       load();
     });
 
@@ -478,12 +555,30 @@
       requestAnimationFrame(() => map.invalidateSize());
     }
 
-    function filterQuery(limit) {
+    function clampPageSize(value) {
+      const n = Number.parseInt(String(value ?? ""), 10);
+      if (!Number.isFinite(n)) return 30;
+      return Math.min(PAGE_SIZE_MAX, Math.max(1, n));
+    }
+
+    function filterParams() {
       const params = new URLSearchParams();
-      params.set("limit", String(limit));
       const q = searchEl.value.trim();
       if (q) params.set("q", q);
       if (countryFilter) params.set("country", countryFilter);
+      return params;
+    }
+
+    function visitsQuery() {
+      const params = filterParams();
+      params.set("limit", String(pageSize));
+      params.set("offset", String((page - 1) * pageSize));
+      return "?" + params.toString();
+    }
+
+    function locationsQuery() {
+      const params = filterParams();
+      params.set("limit", "2000");
       return "?" + params.toString();
     }
 
@@ -491,8 +586,8 @@
       try {
         const [statsRes, visitsRes, locRes] = await Promise.all([
           fetch("/api/stats"),
-          fetch("/api/visits" + filterQuery(200)),
-          fetch("/api/locations" + filterQuery(2000))
+          fetch("/api/visits" + visitsQuery()),
+          fetch("/api/locations" + locationsQuery())
         ]);
         if (statsRes.status === 401 || visitsRes.status === 401 || locRes.status === 401) {
           statusEl.textContent = "Authentication required";
@@ -504,11 +599,17 @@
         const stats = await statsRes.json();
         const body = await visitsRes.json();
         const locations = await locRes.json();
+        const maxPage = Math.max(1, Math.ceil((body.total || 0) / pageSize));
+        if (page > maxPage) {
+          page = maxPage;
+          return load();
+        }
         document.getElementById("total").textContent = stats.total;
         document.getElementById("unique").textContent = stats.uniqueIps;
         document.getElementById("countries").textContent = stats.countries;
         document.getElementById("last").textContent = formatTime(stats.lastSeen);
         renderRows(body.visits);
+        renderPager(body.total || 0, maxPage);
         renderCountries(locations.byCountry);
         renderMap(locations);
         statusEl.textContent = "Updated " + new Date().toLocaleTimeString();
@@ -590,6 +691,17 @@
           </button>
         `;
       }).join("");
+    }
+
+    function renderPager(total, maxPage) {
+      const from = total === 0 ? 0 : (page - 1) * pageSize + 1;
+      const to = Math.min(page * pageSize, total);
+      pagerInfoEl.textContent = total === 0
+        ? "No visits"
+        : "Showing " + from + "–" + to + " of " + total;
+      pageStatusEl.textContent = "Page " + page + " of " + maxPage;
+      pagePrevEl.disabled = page <= 1;
+      pageNextEl.disabled = page >= maxPage || total === 0;
     }
 
     function renderRows(visits) {
