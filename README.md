@@ -203,20 +203,36 @@ Browser UI. HTTP basic auth (`DASHBOARD_USER` / `DASHBOARD_PASSWORD`). The page 
 
 JSON used by the dashboard. Same basic auth. `GET /api/visits?q=stockholm&limit=100`. `GET /api/visits/:id` returns the full stored payload.
 
-## Local testing
+## Development
+
+There is no automated test suite (`npm test` is a stub). Run the Express app locally and hit it with curl or a browser.
+
+### Start
 
 ```bash
 npm install
 DASHBOARD_PASSWORD=dev-pass npm start
 ```
 
-IP lookup (geo fields are `null` without Cloudflare headers):
+It listens on `http://localhost:3000`. SQLite is `./data/visits.db` unless you set `DATABASE_PATH`. Dashboard user defaults to `admin`.
+
+Docker is the same app on port 3000 if you prefer that over `npm start`:
+
+```bash
+cp .env.example .env   # set DASHBOARD_PASSWORD
+docker compose up -d --build
+curl -i http://127.0.0.1:3000/health
+```
+
+### Exercise the endpoints
+
+IP lookup (geo fields are usually `null` without Cloudflare headers; with `GEO_LOOKUP=1` a public IP can still get city/org from ipwho.is):
 
 ```bash
 curl -i "http://localhost:3000/?debug"
 ```
 
-Fake an edge request:
+Fake an edge request so CF headers and logging look like production:
 
 ```bash
 curl -i "http://localhost:3000/?debug" \
@@ -226,21 +242,36 @@ curl -i "http://localhost:3000/?debug" \
   -H "CF-Ray: 0000000000000000-SFO"
 ```
 
-Expect `200`, `X-Log-Status: 200`, and a new row on `/dashboard`.
+You want `200`, `X-Log-Status: 200`, and a new row on the dashboard.
 
-Health (must not create a visit):
+Health (must **not** create a visit):
 
 ```bash
 curl -i http://localhost:3000/health
 ```
 
-Dashboard, as `admin` / `dev-pass`:
+Dashboard in the browser as `admin` / `dev-pass`:
 
 ```
 http://localhost:3000/dashboard
 ```
 
-End-to-end after the tunnel is up:
+Dashboard JSON (same basic auth):
+
+```bash
+curl -u admin:dev-pass "http://localhost:3000/api/stats"
+curl -u admin:dev-pass "http://localhost:3000/api/visits?limit=100"
+```
+
+### Local vs production
+
+- Without Cloudflare, IP comes from the socket (often `::1` or `127.0.0.1`).
+- Country/city/ASN only show up if you send the `CF-*` headers, or if geo lookup fills gaps for a public IP.
+- `/`, `/dashboard`, and tracker-style paths are stored. `/health`, `/api/stats`, and `/api/visits` are not.
+
+### Production smoke check
+
+After the tunnel is up:
 
 1. Confirm `docker compose` is up and `curl http://127.0.0.1:3000/health` works on the home box.
 2. `curl -i https://ip.example.com/?debug` — look for your IP, geo fields, and `X-Log-Status: 200`.
